@@ -1,37 +1,43 @@
-import { Configuration, OpenAIApi, ChatCompletionRequestMessage } from "openai";
+import { NextResponse } from "next/server";
+import { Configuration, CreateChatCompletionResponse, OpenAIApi } from "openai";
+import { AxiosResponse } from "axios";
 
-type Message = {
-  role: string;
-  content: string;
-};
+const configuration = new Configuration({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+const openai = new OpenAIApi(configuration);
 
-export async function POST(request: Request) {
-  const body = await request.json();
+export async function POST(request: Request, response: any) {
+  try {
+    const { title, role } = await request.json();
 
-  const configuration = new Configuration({
-    apiKey: process.env.OPENAIKEY,
-  });
+    const aiResponse: AxiosResponse<CreateChatCompletionResponse, any> =
+      await openai.createChatCompletion({
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "user",
+            // content: `Create small blog post with html tags based on this title: ${title}`,
+            content: `Create 3 line blog post with html tags based on this title: ${title}`,
+          },
+          {
+            role: "system",
+            content: `${
+              role || "I am a helpful assistant"
+            }. Write with html tags.`,
+          },
+        ],
+      });
 
-  let convo = [
-    {
-      role: "system",
-      content:
-        "You are a virtual assistant for content creation. You will be provided with some pointers based on which you need to create a blog article body.",
-    },
-    {
-      role: "user",
-      content: `Create a blog article for me based on these parameters: 
-            - Topic: ${body.title}
-            - Category: ${body.category}
-            ${body.prompt}`,
-    },
-  ];
-
-  const openai = new OpenAIApi(configuration);
-  const completion = await openai.createChatCompletion({
-    model: "gpt-3.5-turbo",
-    messages: convo as ChatCompletionRequestMessage[],
-  });
-
-  return new Response(JSON.stringify(completion.data.choices[0].message));
+    // response.revalidate("/api/posts")
+    return NextResponse.json(
+      {
+        content: aiResponse.data.choices[0].message?.content,
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("request error", error);
+    NextResponse.json({ error: "error updating post" }, { status: 500 });
+  }
 }
